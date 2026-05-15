@@ -1,0 +1,245 @@
+-- Tourism admin schema (MySQL 8+)
+CREATE DATABASE IF NOT EXISTS tourism_admin
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE tourism_admin;
+
+CREATE TABLE IF NOT EXISTS tourism_users (
+  id VARCHAR(36) PRIMARY KEY,
+  first_name VARCHAR(255) NOT NULL,
+  last_name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  phone VARCHAR(64) NOT NULL DEFAULT '',
+  role VARCHAR(32) NOT NULL DEFAULT 'customer',
+  status VARCHAR(32) NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS package_categories (
+  id VARCHAR(36) PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  slug VARCHAR(255) NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS destinations (
+  id VARCHAR(36) PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  slug VARCHAR(255) NOT NULL UNIQUE,
+  description TEXT NOT NULL,
+  image_urls JSON NOT NULL,
+  lat DECIMAL(10, 7) NOT NULL DEFAULT 0,
+  lng DECIMAL(10, 7) NOT NULL DEFAULT 0,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS tour_packages (
+  id VARCHAR(36) PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  slug VARCHAR(255) NOT NULL UNIQUE,
+  price_rwf DECIMAL(14, 2) NOT NULL DEFAULT 0,
+  duration_days INT NOT NULL DEFAULT 1,
+  description TEXT NOT NULL,
+  image_urls JSON NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'active',
+  category_id VARCHAR(36) NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_pkg_cat FOREIGN KEY (category_id) REFERENCES package_categories (id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS itinerary_days (
+  id VARCHAR(36) PRIMARY KEY,
+  package_id VARCHAR(36) NOT NULL,
+  day_number INT NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  description TEXT NOT NULL,
+  CONSTRAINT fk_itin_pkg FOREIGN KEY (package_id) REFERENCES tour_packages (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS destination_package_links (
+  destination_id VARCHAR(36) NOT NULL,
+  package_id VARCHAR(36) NOT NULL,
+  PRIMARY KEY (destination_id, package_id),
+  CONSTRAINT fk_dpl_dest FOREIGN KEY (destination_id) REFERENCES destinations (id) ON DELETE CASCADE,
+  CONSTRAINT fk_dpl_pkg FOREIGN KEY (package_id) REFERENCES tour_packages (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS bookings (
+  id VARCHAR(36) PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  package_id VARCHAR(36) NOT NULL,
+  start_date DATE NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'pending',
+  total_rwf DECIMAL(14, 2) NOT NULL DEFAULT 0,
+  guide_id VARCHAR(36) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_book_user FOREIGN KEY (user_id) REFERENCES tourism_users (id) ON DELETE CASCADE,
+  CONSTRAINT fk_book_pkg FOREIGN KEY (package_id) REFERENCES tour_packages (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS payments (
+  id VARCHAR(36) PRIMARY KEY,
+  booking_id VARCHAR(36) NOT NULL,
+  amount_rwf DECIMAL(14, 2) NOT NULL DEFAULT 0,
+  status VARCHAR(32) NOT NULL DEFAULT 'unpaid',
+  method VARCHAR(64) NOT NULL DEFAULT 'flutterwave',
+  reference VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_pay_book FOREIGN KEY (booking_id) REFERENCES bookings (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS message_threads (
+  id VARCHAR(36) PRIMARY KEY,
+  source VARCHAR(64) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  subject VARCHAR(512) NOT NULL,
+  body TEXT NOT NULL,
+  read_flag TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS car_rental_requests (
+  id VARCHAR(36) PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  phone VARCHAR(64) NOT NULL DEFAULT '',
+  vehicle_class VARCHAR(64) NOT NULL,
+  pickup_date DATE NOT NULL,
+  return_date DATE NOT NULL,
+  pickup_location VARCHAR(512) NOT NULL DEFAULT '',
+  return_location VARCHAR(512) NOT NULL DEFAULT '',
+  driver_option VARCHAR(64) NOT NULL DEFAULT 'self-drive',
+  extras_json JSON NOT NULL,
+  message TEXT NOT NULL DEFAULT '',
+  status VARCHAR(32) NOT NULL DEFAULT 'pending',
+  admin_notes TEXT NOT NULL DEFAULT '',
+  read_flag TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS car_rental_vehicles (
+  id VARCHAR(36) PRIMARY KEY,
+  slug VARCHAR(64) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  badge VARCHAR(255) NOT NULL DEFAULT '',
+  blurb TEXT NOT NULL DEFAULT '',
+  daily_price_usd DECIMAL(12, 2) NOT NULL DEFAULT 0,
+  specs_json JSON NOT NULL,
+  image_url VARCHAR(2048) NOT NULL DEFAULT '',
+  active_flag TINYINT(1) NOT NULL DEFAULT 1,
+  sort_order INT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_car_rental_vehicles_slug (slug)
+);
+
+CREATE TABLE IF NOT EXISTS reviews (
+  id VARCHAR(36) PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  package_id VARCHAR(36) NOT NULL,
+  rating INT NOT NULL,
+  comment TEXT NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'pending',
+  featured TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_rev_user FOREIGN KEY (user_id) REFERENCES tourism_users (id) ON DELETE CASCADE,
+  CONSTRAINT fk_rev_pkg FOREIGN KEY (package_id) REFERENCES tour_packages (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS blog_categories (
+  id VARCHAR(36) PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  slug VARCHAR(255) NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS blog_posts (
+  id VARCHAR(36) PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  slug VARCHAR(255) NOT NULL UNIQUE,
+  excerpt TEXT NOT NULL,
+  body MEDIUMTEXT NOT NULL,
+  category_id VARCHAR(36) NULL,
+  cover_image_url VARCHAR(1024) NOT NULL DEFAULT '',
+  published TINYINT(1) NOT NULL DEFAULT 0,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_post_cat FOREIGN KEY (category_id) REFERENCES blog_categories (id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS gallery_items (
+  id VARCHAR(36) PRIMARY KEY,
+  url VARCHAR(2048) NOT NULL,
+  type VARCHAR(32) NOT NULL DEFAULT 'image',
+  category VARCHAR(64) NOT NULL DEFAULT 'other',
+  caption VARCHAR(512) NOT NULL DEFAULT '',
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS tour_guides (
+  id VARCHAR(36) PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  languages JSON NOT NULL,
+  bio TEXT NOT NULL,
+  availability VARCHAR(64) NOT NULL DEFAULT 'available',
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_guide_user FOREIGN KEY (user_id) REFERENCES tourism_users (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS activity_logs (
+  id VARCHAR(36) PRIMARY KEY,
+  actor VARCHAR(255) NOT NULL,
+  action VARCHAR(255) NOT NULL,
+  entity VARCHAR(512) NOT NULL,
+  at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS admin_notifications (
+  id VARCHAR(36) PRIMARY KEY,
+  type VARCHAR(64) NOT NULL DEFAULT 'system',
+  title VARCHAR(512) NOT NULL,
+  read_flag TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS monthly_metrics (
+  id VARCHAR(36) PRIMARY KEY,
+  month_label VARCHAR(32) NOT NULL,
+  bookings INT NOT NULL DEFAULT 0,
+  revenue_rwf DECIMAL(14, 2) NOT NULL DEFAULT 0,
+  sort_order INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS role_definitions (
+  id VARCHAR(64) PRIMARY KEY,
+  label VARCHAR(255) NOT NULL,
+  permissions JSON NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS site_settings (
+  singleton TINYINT(1) NOT NULL PRIMARY KEY DEFAULT 1,
+  payload JSON NOT NULL,
+  CONSTRAINT chk_singleton CHECK (singleton = 1)
+);
+
+INSERT IGNORE INTO site_settings (singleton, payload) VALUES (1, '{}');
+
+CREATE TABLE IF NOT EXISTS admin_settings (
+  singleton TINYINT(1) NOT NULL PRIMARY KEY DEFAULT 1,
+  payload JSON NOT NULL,
+  CONSTRAINT chk_admin_singleton CHECK (singleton = 1)
+);
+
+INSERT IGNORE INTO admin_settings (singleton, payload) VALUES (1, '{}');
+
+CREATE TABLE IF NOT EXISTS admin_users (
+  id VARCHAR(36) PRIMARY KEY,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  role VARCHAR(32) NOT NULL DEFAULT 'superadmin',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS admin_sessions (
+  token VARCHAR(36) PRIMARY KEY,
+  admin_user_id VARCHAR(36) NOT NULL,
+  exp BIGINT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_admin_session_user FOREIGN KEY (admin_user_id) REFERENCES admin_users (id) ON DELETE CASCADE
+);
